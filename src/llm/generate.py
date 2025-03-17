@@ -1,4 +1,5 @@
-from vertexai.generative_models import GenerationResponse
+# from vertexai.generative_models import GenerationResponse
+from openai import ChatCompletion
 from src.llm.strategy import GenerationStrategyFactory
 from src.llm.factory import ModelFactoryProvider
 from src.config.logging import logger
@@ -30,7 +31,7 @@ class ResponseGenerator:
         self.model_factory = ModelFactoryProvider.get_instance()
         self.generation_strategy = GenerationStrategyFactory.get_strategy(strategy_type)
 
-    def generate_response(self, model_name: str, system_instruction: str, contents: List[str], response_schema: Optional[Dict[str, Any]] = None, tools: List[Any] = None) -> GenerationResponse:
+    def generate_response(self, model_name: str, system_instruction: str, contents: List[str], response_schema: Optional[Dict[str, Any]] = None, max_retries: int = 3) -> ChatCompletion:
         """
         Generates a response based on the provided model name, system instruction, contents, response schema, and tools.
 
@@ -42,7 +43,7 @@ class ResponseGenerator:
             tools (List[Any]): Tools passed to the model for content generation (default is None).
 
         Returns:
-            GenerationResponse: Generated response object.
+            ChatCompletion: Generated response object.
 
         Raises:
             Exception: If an error occurs during response generation.
@@ -51,41 +52,42 @@ class ResponseGenerator:
         
         try:
             logger.info(f"Creating model instance for: {model_name}")
-            model = self.model_factory.create_model(model_name, system_instruction)
+            model = self.model_factory.create_model()
             logger.info("Model created successfully.")
             
             # Prepare generation configuration and safety settings
-            generation_config = self.generation_strategy.create_generation_config(response_schema) if response_schema else None
+            generation_config = self.generation_strategy.create_generation_config(response_schema)
             safety_settings = self.generation_strategy.create_safety_settings()
+            messages = [{"role": "system", "content": system_instruction}]
+            messages.extend([{"role": "user", "content": content} for content in contents])
+            kwargs = {"model": model_name, "messages": messages, **generation_config, **safety_settings}
             
-            response = model.generate_content(
-                contents, 
-                generation_config=generation_config, 
-                safety_settings=safety_settings,
-                tools=tools
-            )
+            response = model.complete(**kwargs)
             logger.info("Response generated successfully.")
             return response 
         
         except Exception as e:
-            if "429" in str(e) and "Resource exhausted" in str(e):
-                logger.error("Quota exceeded: 429 Resource exhausted. Retrying in 60 seconds.")
-                time.sleep(60)  # Retry after delay due to quota limits
-                return self._retry_generate_response(model, contents, generation_config, safety_settings, tools)
-            else:
-                logger.error(f"Error generating response: {e}")
-                raise
+            retry_count = 0
+            while retry_count < max_retries:
+                try:
+                    logger.error(f"Error generating response, attempt {retry_count + 1} of {max_retries}: {e}")
+                    time.sleep(5)  # Wait between retries
+                    return self._retry_generate_response(model, kwargs)
+                except Exception as retry_error:
+                    retry_count += 1
+                    if retry_count == max_retries:
+                        logger.error(f"Max retries ({max_retries}) reached. Final error: {retry_error}")
+                        raise
+                    e = retry_error
 
-    def _retry_generate_response(self, model, contents, generation_config, safety_settings, tools) -> GenerationResponse:
+    def _retry_generate_response(self, model, kwargs) -> ChatCompletion:
         """
         Retries response generation once after a 429 quota limit error.
 
         Args:
             model: Model instance to retry with.
             contents (List[str]): Content input for response generation.
-            generation_config (Any): Configuration for generation.
-            safety_settings (Any): Safety settings for the model.
-            tools (List[Any]): Tools passed to the model.
+            kwargs (Dict[str, Any]): Keyword arguments for the model.
 
         Returns:
             GenerationResponse: The response after retry.
@@ -94,12 +96,7 @@ class ResponseGenerator:
             Exception: If the retry fails or another error occurs.
         """
         try:
-            response = model.generate_content(
-                contents,
-                generation_config=generation_config,
-                safety_settings=safety_settings,
-                tools=tools
-            )
+            response = model.complete(**kwargs)
             logger.info("Response generated successfully after retry.")
             return response
         except Exception as retry_error:

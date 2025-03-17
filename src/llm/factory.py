@@ -1,8 +1,14 @@
-from vertexai.generative_models import GenerativeModel
+# from vertexai.generative_models import GenerativeModel
+from openai import ChatCompletion
+from openai import OpenAI
 from src.config.logging import logger
 from abc import abstractmethod
 from typing import Optional
 from abc import ABC
+import os
+import dotenv
+
+dotenv.load_dotenv()
 
 
 class ModelFactory(ABC):
@@ -14,7 +20,7 @@ class ModelFactory(ABC):
     """
 
     @abstractmethod
-    def create_model(self, model_name: str, system_instruction: str) -> GenerativeModel:
+    def create_model(self, model_name: str, system_instruction: str):
         """
         Creates and returns an instance of a GenerativeModel.
 
@@ -32,36 +38,21 @@ class ModelFactory(ABC):
         """
         raise NotImplementedError("Subclasses must implement the `create_model` method")
 
-
-class VertexAIModelFactory(ModelFactory):
+class OpenAIModelFactory(ModelFactory):
     """
-    Concrete implementation of the ModelFactory for Vertex AI models.
-
-    This class is responsible for creating instances of GenerativeModel specific to Vertex AI.
+    Concrete implementation of the ModelFactory for OpenAI models.
     """
-
-    def create_model(self, model_name: str, system_instruction: str) -> GenerativeModel:
+    def create_model(self) -> ChatCompletion:
         """
-        Creates and returns an instance of a Vertex AI GenerativeModel.
-
-        Args:
-            model_name (str): The name of the Vertex AI model to create.
-            system_instruction (str): The system instruction to initialize the model with.
-
-        Returns:
-        --------
-        GenerativeModel: An instance of the Vertex AI GenerativeModel.
-
-        Raises:
-        -------
-        Exception: If there is an error during model creation, it logs the error and re-raises it.
+        Creates and returns an instance of a OpenAI GenerativeModel.
         """
         try:
-            return GenerativeModel(model_name, system_instruction=system_instruction)
+            model = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            model.complete = model.chat.completions.create
+            return model
         except Exception as e:
-            logger.error(f"Error creating GenerativeModel: {e}")
+            logger.error(f"Error creating OpenAI Model: {e}")
             raise
-
 
 class ModelFactoryProvider:
     """
@@ -84,5 +75,5 @@ class ModelFactoryProvider:
         ModelFactory: The singleton instance of the ModelFactory.
         """
         if ModelFactoryProvider._instance is None:
-            ModelFactoryProvider._instance = VertexAIModelFactory()
+            ModelFactoryProvider._instance = OpenAIModelFactory()
         return ModelFactoryProvider._instance

@@ -1,6 +1,3 @@
-from vertexai.generative_models import HarmBlockThreshold 
-from vertexai.generative_models import GenerationConfig
-from vertexai.generative_models import HarmCategory
 from src.config.logging import logger
 from abc import abstractmethod
 from typing import Dict
@@ -15,7 +12,7 @@ class GenerationStrategy(ABC):
     """
 
     @abstractmethod
-    def create_generation_config(self, response_schema: Dict[str, Any]) -> GenerationConfig:
+    def create_generation_config(self, response_schema: Dict[str, Any]) -> Dict:
         """
         Create the generation configuration based on the provided response schema.
 
@@ -28,7 +25,7 @@ class GenerationStrategy(ABC):
         raise NotImplementedError("Subclasses must implement the `create_generation_config` method")
 
     @abstractmethod
-    def create_safety_settings(self) -> Dict[HarmCategory, HarmBlockThreshold]:
+    def create_safety_settings(self) -> Dict:
         """
         Create the safety settings for the generation process.
 
@@ -44,7 +41,7 @@ class DefaultGenerationStrategy(GenerationStrategy):
     Provides a basic configuration and safety settings for text generation.
     """
 
-    def create_generation_config(self, response_schema: Dict[str, Any]) -> GenerationConfig:
+    def create_generation_config(self, response_schema: Dict[str, Any]) -> Dict:
         """
         Create the default generation configuration.
 
@@ -55,14 +52,12 @@ class DefaultGenerationStrategy(GenerationStrategy):
             GenerationConfig: The configuration object for text generation.
         """
         try:
-            config = GenerationConfig(
-                temperature=0.0,
-                top_p=0.0,
-                top_k=1,
-                candidate_count=1,
-                max_output_tokens=8192,
-                response_mime_type="application/json",
-                response_schema=response_schema
+            config = dict(
+                temperature=1,
+                top_p=1,
+                stream=False,
+                n=1,
+                response_format=response_schema
             )
             logger.info("Generation configuration created successfully.")
             return config
@@ -70,26 +65,27 @@ class DefaultGenerationStrategy(GenerationStrategy):
             logger.error(f"Error creating generation configuration: {e}")
             raise
 
-    def create_safety_settings(self) -> Dict[HarmCategory, HarmBlockThreshold]:
+    def create_safety_settings(self) -> Dict:
         """
         Create the default safety settings.
 
         Returns:
             Dict[HarmCategory, HarmBlockThreshold]: A dictionary mapping harm categories to block thresholds.
         """
-        try:
-            safety_settings = {
-                HarmCategory.HARM_CATEGORY_UNSPECIFIED: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE
-            }
-            logger.info("Safety settings created successfully.")
-            return safety_settings
-        except Exception as e:
-            logger.error(f"Error creating safety settings: {e}")
-            raise
+        return {}
+        # try:
+        #     safety_settings = {
+        #         HarmCategory.HARM_CATEGORY_UNSPECIFIED: HarmBlockThreshold.BLOCK_NONE,
+        #         HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        #         HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+        #         HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+        #         HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE
+        #     }
+        #     logger.info("Safety settings created successfully.")
+        #     return safety_settings
+        # except Exception as e:
+        #     logger.error(f"Error creating safety settings: {e}")
+        #     raise
 
 
 class GenerationStrategyFactory:

@@ -1,0 +1,8 @@
+cpt_code_enricher:
+  system_instructions: 'data/projects/medical_coding/cpt_code_enricher/system_instructions.txt'
+  user_instructions: 'data/projects/medical_coding/cpt_code_enricher/user_instructions.txt'
+  response_schema: 'data/projects/medical_coding/cpt_code_enricher/response_schema.json'
+medical_code_summarizer:
+  system_instructions: 'data/projects/medical_coding/medical_code_summarizer/system_instructions.txt'
+  user_instructions: 'data/projects/medical_coding/medical_code_summarizer/user_instructions.txt'
+  response_schema: 'data/projects/medical_coding/medical_code_summarizer/response_schema.json'

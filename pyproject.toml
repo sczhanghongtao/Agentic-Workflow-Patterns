@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "agentic-workflow-patterns"
+version = "0.1.0"
+package-mode = false
+description = "Monorepo for agentic workflow patterns and projects"
+authors = ["Hongtao Zhang <sczhanghongtao@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pinecone-client = "^2.2.4"
+openai = "1.55.3"
+streamlit = "^1.25.0"
+python-dotenv = "^1.0.0"
+pinecone = "^6.0.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api" 
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

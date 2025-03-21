@@ -4,12 +4,12 @@ from src.llm.strategy import GenerationStrategyFactory
 from src.llm.factory import ModelFactoryProvider
 from src.config.logging import logger
 from src.config.setup import *
+from src.utils.io import extract_json_from_response
 from typing import Optional
 from typing import List 
 from typing import Dict 
 from typing import Any 
 import time
-
 
 class ResponseGenerator:
     """
@@ -21,14 +21,14 @@ class ResponseGenerator:
         generation_strategy: Strategy selected for content generation.
     """
 
-    def __init__(self, strategy_type: str = "default") -> None:
+    def __init__(self, llm_type: str = "openai", strategy_type: str = "default") -> None:
         """
         Initializes ResponseGenerator with the specified strategy type.
 
         Args:
             strategy_type (str): Type of strategy for content generation. Defaults to "default".
         """
-        self.model_factory = ModelFactoryProvider.get_instance()
+        self.model_factory = ModelFactoryProvider.get_instance(llm_type)
         self.generation_strategy = GenerationStrategyFactory.get_strategy(strategy_type)
 
     def generate_response(self, model_name: str, system_instruction: str, contents: List[str], response_schema: Optional[Dict[str, Any]] = None, max_retries: int = 3) -> ChatCompletion:
@@ -52,7 +52,7 @@ class ResponseGenerator:
         
         try:
             logger.info(f"Creating model instance for: {model_name}")
-            model = self.model_factory.create_model()
+            model = self.model_factory
             logger.info("Model created successfully.")
             
             # Prepare generation configuration and safety settings
@@ -60,9 +60,13 @@ class ResponseGenerator:
             safety_settings = self.generation_strategy.create_safety_settings()
             messages = [{"role": "system", "content": system_instruction}]
             messages.extend([{"role": "user", "content": content} for content in contents])
+
             kwargs = {"model": model_name, "messages": messages, **generation_config, **safety_settings}
             
             response = model.complete(**kwargs)
+            response = model.parse_response(response)
+            if response_schema:
+                response = extract_json_from_response(response)
             logger.info("Response generated successfully.")
             return response 
         
@@ -80,7 +84,7 @@ class ResponseGenerator:
                         raise
                     e = retry_error
 
-    def _retry_generate_response(self, model, kwargs) -> ChatCompletion:
+    def _retry_generate_response(self, model, kwargs, response_schema: Optional[Dict[str, Any]] = None) -> ChatCompletion:
         """
         Retries response generation once after a 429 quota limit error.
 
@@ -97,6 +101,9 @@ class ResponseGenerator:
         """
         try:
             response = model.complete(**kwargs)
+            response = model.parse_response(response)
+            if response_schema:
+                response = extract_json_from_response(response)
             logger.info("Response generated successfully after retry.")
             return response
         except Exception as retry_error:

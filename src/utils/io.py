@@ -178,13 +178,45 @@ def extract_json_from_response(response_text: str) -> Optional[Dict[str, Any]]:
         Optional[Dict[str, Any]]: Extracted JSON data as a dictionary, or None if extraction fails.
     """
     try:
-        json_match = re.search(r'<JSON>(.*?)</JSON>', response_text, re.DOTALL)
+        json_match = re.search(r'<JSON>(.*?)</JSON>|```json\n(.*?)\n\s*```', response_text, re.DOTALL)
         if json_match:
-            json_str = json_match.group(1).strip()
+            # Get whichever group matched (1 or 2)
+            json_str = next(group for group in json_match.groups() if group is not None).strip()
             return json.loads(json_str)
         else:
-            logger.error("No JSON content found in LLM response.")
-            return None
+            return json.loads(response_text)
     except JSONDecodeError as e:
         logger.error(f"JSON decoding error: {e}")
         return None
+    except Exception as e:
+        logger.error(f"No JSON content found in LLM response.")
+        return None
+
+def append_to_json_file(file_path, new_data,replace=False):
+    """
+    Open a JSON file, append new results to the end,
+    and write the updated content back to the JSON file.
+
+    Parameters:
+    - file_path (str): The path to the JSON file.
+    - new_data (dict): The new data to append to the JSON file.
+
+    Returns:
+    - None
+    """
+    if os.path.exists(file_path) and replace:
+        os.remove(file_path)
+    # Load existing data from the JSON file
+    try:
+        with open(file_path, 'r') as file:
+            existing_data = json.load(file)
+    except FileNotFoundError:
+        # If the file doesn't exist, start with an empty dictionary
+        existing_data = []
+    
+    # Append new data to the existing data
+    existing_data = existing_data + new_data
+
+    # Write the updated data back to the JSON file
+    with open(file_path, 'w') as file:
+        json.dump(existing_data, file, indent=4)
